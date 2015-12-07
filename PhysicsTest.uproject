@@ -1,0 +1,16 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "4.9",
+	"Category": "",
+	"Description": "",
+	"Plugins": [
+		{
+			"Name": "SkookumScript",
+			"Enabled": false
+		},
+		{
+			"Name": "FMODStudio",
+			"Enabled": true
+		}
+	]
+}
