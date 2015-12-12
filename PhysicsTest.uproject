@@ -1,8 +1,18 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "4.9",
+	"EngineAssociation": "4.10",
 	"Category": "",
 	"Description": "",
+	"Modules": [
+		{
+			"Name": "PhysicsTest",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	],
 	"Plugins": [
 		{
 			"Name": "SkookumScript",
