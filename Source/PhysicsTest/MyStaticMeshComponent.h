@@ -5,6 +5,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "MyStaticMeshComponent.generated.h"
 
+class ACubeActor;
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PHYSICSTEST_API UMyStaticMeshComponent : public UStaticMeshComponent
 {
@@ -22,33 +24,6 @@ public:
 
 	void CustomPhysics(float DeltaTime, FBodyInstance* BodyInstance);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Harmonic Motion")
-		float StartVelocity;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Harmonic Motion")
-		float KElasticity;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
-		bool bUseFloater;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
-		float kp;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
-		float ki;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
-		float kd;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
-		float power;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General")
-		bool bSubstepEnabled;
-
 private:
-	float StartH;
-	float lasterror, errorsum;
-
-	void DoPhysics(float DeltaTime, bool InSubstep);
-	void DoHarmonic(float DeltaTime, bool InSubstep);
-	void DoFloater(float DeltaTime, bool InSubstep);
+	ACubeActor *owner;
 };
