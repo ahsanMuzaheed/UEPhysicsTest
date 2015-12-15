@@ -28,29 +28,6 @@ FString FMySecondaryTickFunction::DiagnosticMessage()
 	return Target->GetFullName() + TEXT("[TickActor2]");
 }
 
-void ACubeActor::TickPostPhysics(
-	float DeltaSeconds,
-	ELevelTick TickType,
-	FMySecondaryTickFunction& ThisTickFunction
-	)
-{
-	// Non-player update.
-	const bool bShouldTick =
-		((TickType != LEVELTICK_ViewportsOnly) || ShouldTickIfViewportsOnly());
-	if (bShouldTick)
-	{
-		if (!IsPendingKill() && GetWorld())
-		{
-			if (GetWorldSettings() != NULL &&
-				(bAllowReceiveTickEventOnDedicatedServer || !IsRunningDedicatedServer()))
-			{
-				//My cool post physics tick stuff
-				UE_LOG(LogClass, Log, TEXT("%d ACubeActor::TickActor2 DeltaSeconds: %f"), FrameCount, DeltaSeconds);
-			}
-		}
-	}
-}
-
 // Sets default values
 ACubeActor::ACubeActor(const class FObjectInitializer& PCIP)
 	: Super(PCIP)
@@ -63,23 +40,27 @@ ACubeActor::ACubeActor(const class FObjectInitializer& PCIP)
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 
-	SecondaryActorTick.TickGroup = TG_PostPhysics;
+	SecondaryActorTick.TickGroup = TG_PrePhysics;
 	SecondaryActorTick.bCanEverTick = true;
 	SecondaryActorTick.bStartWithTickEnabled = true;
 
-	// Harmonic
+	// Init parameters
 	StartVelocity = 1000.0f;
-	KElasticity = 100.0f;
-
-	// Floater 
-	lasterror = 0;
-	errorsum = 0;
+	ForceApplied = 0.0f;
+	LastError = 0;
+	ErrorIntegration = 0;
+	LastDeltaTime = 0;
 	Kp = 100.0f;
 	Ki = 0;
 	Kd = 5;
+	ForceVariationPeriod = 1;
+
+	CurrentAppliedForce = 0;
 
 	FrameCount = 0;
-
+	bApplyForce = false;
+	bEnableLogging = false;
+	
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("StaticMesh'/Engine/BasicShapes/Cube'"));
 
 	cube = Cast<UStaticMeshComponent>(PCIP.CreateDefaultSubobject <UMyStaticMeshComponent>(this, TEXT("Cube")));
@@ -154,60 +135,89 @@ void ACubeActor::Tick( float DeltaTime )
 
 	FrameCount++;
 
-	UE_LOG(LogClass, Log, TEXT("%d ACubeActor::Tick DeltaTime: %f"), FrameCount, DeltaTime);
+	if (GetGameInstance()->GetFirstLocalPlayerController()->WasInputKeyJustPressed(EKeys::SpaceBar)) {
+		bApplyForce = !bApplyForce;
+
+		UE_LOG(LogClass, Log, TEXT("Apply force: %s"), bApplyForce ? TEXT("True") : TEXT("False"));
+	}
+
+	if(bEnableLogging)
+		UE_LOG(LogClass, Log, TEXT("%d ACubeActor::Tick DeltaTime: %f, Z: %f"), FrameCount, DeltaTime, cube->GetComponentLocation().Z);
+
+	if (!bSubstepEnabled)
+		MainTick(DeltaTime);
 }
 
 void ACubeActor::MainTick(float DeltaTime) 
 {
-	UE_LOG(LogClass, Log, TEXT("%d ACubeActor::MainTick DeltaTime: %f"), FrameCount, DeltaTime);
+	if (bEnableLogging)
+		UE_LOG(LogClass, Log, TEXT("%d ACubeActor::MainTick DeltaTime: %f"), FrameCount, DeltaTime);
 
 	DoPhysics(DeltaTime, false);
 }
 
 void ACubeActor::SubstepTick(float DeltaTime)
 {
-	UE_LOG(LogClass, Log, TEXT("%d ACubeActor::SubstepTick DeltaTime: %f"), FrameCount, DeltaTime);
+	physx::PxRigidBody* PRigidBody = cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
+	PxTransform PTransform = PRigidBody->getGlobalPose();
+
+	if (bEnableLogging)
+		UE_LOG(LogClass, Log, TEXT("%d ACubeActor::SubstepTick DeltaTime: %f, Z: %f"), FrameCount, DeltaTime, PTransform.p.z);
 
 	DoPhysics(DeltaTime, true);
+}
+
+void ACubeActor::TickPostPhysics(
+	float DeltaSeconds,
+	ELevelTick TickType,
+	FMySecondaryTickFunction& ThisTickFunction
+	)
+{
+	// Non-player update.
+	const bool bShouldTick =
+		((TickType != LEVELTICK_ViewportsOnly) || ShouldTickIfViewportsOnly());
+	if (bShouldTick)
+	{
+		if (!IsPendingKill() && GetWorld())
+		{
+			if (GetWorldSettings() != NULL &&
+				(bAllowReceiveTickEventOnDedicatedServer || !IsRunningDedicatedServer()))
+			{
+				//My cool post physics tick stuff
+				if (bEnableLogging)
+					UE_LOG(LogClass, Log, TEXT("%d ACubeActor::TickPostPhysics DeltaTime: %f, Z: %f"), FrameCount, DeltaSeconds, cube->GetComponentLocation().Z);
+			}
+		}
+	}
 }
 
 void ACubeActor::DoPhysics(float DeltaTime, bool InSubstep)
 {
 	if (!cube) return;
 
-	if (bUseFloater)
-		DoFloater(DeltaTime, InSubstep);
-	else
-		DoHarmonic(DeltaTime, InSubstep);
-}
-
-void ACubeActor::DoHarmonic(float DeltaTime, bool InSubstep)
-{
-	float DeltaH = cube->GetComponentLocation().Z - StartH;
-
-	if (InSubstep) {
-		physx::PxRigidBody* PRigidBody = cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
-		PRigidBody->addForce(PxVec3(0.0f, 0.0f, -DeltaH * KElasticity), physx::PxForceMode::eFORCE, true);
-	}
-	else {
-		cube->AddForce(FVector(0.0f, 0.0f, -DeltaH * KElasticity));
-	}
-
-	/*UE_LOG(LogClass, Log, TEXT("UMyStaticMeshComponent::DoPhysics - deltaH %f, dt %f, mass %f, F %f"),
-	GetComponentLocation().Z - StartH,
-	DeltaTime,
-	GetMass(),
-	-DeltaH * KElasticity
-	);*/
+	DoFloater(DeltaTime, InSubstep);
 }
 
 void ACubeActor::DoFloater(float DeltaTime, bool InSubstep)
 {
-	float prevError = lasterror;
-	lasterror = cube->GetComponentLocation().Z - StartH;
-	errorsum += lasterror;
+	float CurrError = 0;
 
-	float force = -(lasterror * Kp + +errorsum * Ki + (lasterror - prevError) * Kd / DeltaTime);
+	if (InSubstep) {
+		physx::PxRigidBody* PRigidBody = cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
+		PxTransform PTransform = PRigidBody->getGlobalPose();
+
+		CurrError = PTransform.p.z - StartH;
+	}
+	else {
+		CurrError = cube->GetComponentLocation().Z - StartH;
+	}
+
+	ErrorIntegration += CurrError * DeltaTime;
+	float ErrorDerivative = LastDeltaTime == 0 ? 0 : (CurrError - LastError) / LastDeltaTime;
+
+	float force = -(CurrError * Kp + ErrorIntegration * Ki + ErrorDerivative * Kd);
+
+	force = ClampForce(force, DeltaTime) + GetAppliedforce(DeltaTime);
 
 	if (InSubstep) {
 		physx::PxRigidBody* PRigidBody = cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
@@ -216,6 +226,9 @@ void ACubeActor::DoFloater(float DeltaTime, bool InSubstep)
 	else {
 		cube->AddForce(FVector(0.0f, 0.0f, force));
 	}
+
+	LastDeltaTime = DeltaTime;
+	LastError = CurrError;
 
 	/* REDOUT PID Controller Code
 
@@ -231,4 +244,28 @@ void ACubeActor::DoFloater(float DeltaTime, bool InSubstep)
 	RayHistory->ErrorSum * floatSys.Ki)
 	* floatSys.Power;
 	*/
+}
+
+float ACubeActor::ClampForce(float Force, float DeltaTime) {
+	return Force;
+}
+
+float ACubeActor::GetAppliedforce(float DeltaTime) {
+	float TargetAppliedforce = 0;
+
+	if (bApplyForce) TargetAppliedforce = ForceApplied;
+	if (ForceVariationPeriod == 0) ForceVariationPeriod = 1;
+
+	int d = CurrentAppliedForce < TargetAppliedforce ? 1 : -1;
+	float dt = FMath::Abs(DeltaTime * ForceApplied / ForceVariationPeriod);
+
+	if (FMath::Abs(TargetAppliedforce - CurrentAppliedForce) < dt) {
+		CurrentAppliedForce = TargetAppliedforce;
+	}
+	else {
+		CurrentAppliedForce += d * dt;
+		//UE_LOG(LogClass, Log, TEXT("Applied force: %f, Target: %f"), CurrentAppliedForce, TargetAppliedforce);
+	}
+
+	return CurrentAppliedForce;
 }

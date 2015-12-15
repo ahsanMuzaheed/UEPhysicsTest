@@ -13,9 +13,12 @@ UMyStaticMeshComponent::UMyStaticMeshComponent()
 
 	OnCalculateCustomPhysics.BindUObject(this, &UMyStaticMeshComponent::CustomPhysics);
 
-	SetTickGroup(ETickingGroup::TG_PrePhysics);
+	//SetTickGroup(ETickingGroup::TG_PrePhysics);
+	SetTickGroup(ETickingGroup::TG_PostPhysics);
 
 	owner = Cast<ACubeActor>(GetOwner());
+
+	FrameCount = 0;
 }
 
 void UMyStaticMeshComponent::BeginPlay()
@@ -27,11 +30,11 @@ void UMyStaticMeshComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	//UE_LOG(LogClass, Log, TEXT("UMyStaticMeshComponent::TickComponent - DeltaTime: %f"), DeltaTime);
+	FrameCount++;
 
-	if(!owner->bSubstepEnabled)
-		owner->MainTick(DeltaTime);
-	else 
+	//UE_LOG(LogClass, Log, TEXT("%d UMyStaticMeshComponent::TickComponent - DeltaTime: %f, Z: %f"), FrameCount, DeltaTime, GetComponentLocation().Z);
+
+	if(owner->bSubstepEnabled)
 	{
 		// Add custom physics forces each tick
 		GetBodyInstance()->AddCustomPhysics(OnCalculateCustomPhysics);
@@ -43,4 +46,8 @@ void UMyStaticMeshComponent::CustomPhysics(float DeltaTime, FBodyInstance* BodyI
 	//UE_LOG(LogClass, Log, TEXT("CustomPhysics: %f"), DeltaTime);
 
 	owner->SubstepTick(DeltaTime);
+}
+
+void UMyStaticMeshComponent::PostPhysicsTick(FPrimitiveComponentPostPhysicsTickFunction &ThisTickFunction) {
+	UE_LOG(LogClass, Log, TEXT("UMyStaticMeshComponent::PostPhysicsTick: %f"), ThisTickFunction.TickInterval);
 }

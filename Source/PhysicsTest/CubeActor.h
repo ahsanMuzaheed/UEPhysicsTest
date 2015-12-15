@@ -38,24 +38,27 @@ public:
 	// Called every frame
 	virtual void Tick( float DeltaSeconds ) override;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Harmonic Motion")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
 		float StartVelocity;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Harmonic Motion")
-		float KElasticity;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
+		float ForceApplied;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
-		bool bUseFloater;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
+		float ForceVariationPeriod;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
 		float Kp;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
 		float Ki;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Floater")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
 		float Kd;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
 		bool bSubstepEnabled;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
+		bool bEnableLogging;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Tick")
 	FMySecondaryTickFunction SecondaryActorTick;
@@ -74,13 +77,20 @@ public:
 
 private:
 	float StartH;
-	float lasterror, errorsum;
+	float LastError, ErrorIntegration;
+	float LastDeltaTime;
 
 	void DoPhysics(float DeltaTime, bool InSubstep);
-	void DoHarmonic(float DeltaTime, bool InSubstep);
 	void DoFloater(float DeltaTime, bool InSubstep);
+
+	float ClampForce(float Force, float DeltaTime);
+	float GetAppliedforce(float DeltaTime);
 
 	UStaticMeshComponent *cube;
 
 	int32 FrameCount;
+
+	bool bApplyForce;
+
+	float CurrentAppliedForce;
 };

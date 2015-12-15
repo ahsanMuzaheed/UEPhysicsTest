@@ -23,7 +23,8 @@ public:
 	FCalculateCustomPhysics OnCalculateCustomPhysics;
 
 	void CustomPhysics(float DeltaTime, FBodyInstance* BodyInstance);
-
+	virtual void PostPhysicsTick(FPrimitiveComponentPostPhysicsTickFunction &ThisTickFunction) override;
 private:
 	ACubeActor *owner;
+	int32 FrameCount;
 };
