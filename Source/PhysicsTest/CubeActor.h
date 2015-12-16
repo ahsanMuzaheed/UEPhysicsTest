@@ -60,8 +60,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
 		bool bEnableLogging;
 
-	UPROPERTY(VisibleAnywhere, Category = "Linear Damping", meta = (ToolTip = "All contexts must pass condition"))
-		float bTest;
+	UPROPERTY(VisibleAnywhere, Category = "Linear Damping Analysis", meta = (ToolTip = "Natural frequency (Hz)"))
+		float W0;
+
+	UPROPERTY(VisibleAnywhere, Category = "Linear Damping Analysis", meta = (ToolTip = "Natural period (ms)"))
+		float Period;
+
+	UPROPERTY(VisibleAnywhere, Category = "Linear Damping Analysis", meta = (ToolTip = "Damping Ratio (Z=1: Critical, Z>1: Over, 0<=Z<1: Under)"))
+		float Z;
+
+	UPROPERTY(VisibleAnywhere, Category = "Linear Damping Analysis", meta = (ToolTip = "Damping Frequency (Hz)"))
+		float Wd;
+
+	UPROPERTY(VisibleAnywhere, Category = "Linear Damping Analysis", meta = (ToolTip = "Peak Frequency (Hz)"))
+		float WPeak;
+
+	UPROPERTY(VisibleAnywhere, Category = "Linear Damping Analysis", meta = (ToolTip = "Max Gain at Peak Frequency"))
+		float MaxGain;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Tick")
 	FMySecondaryTickFunction SecondaryActorTick;
@@ -86,7 +101,8 @@ private:
 	void DoPhysics(float DeltaTime, bool InSubstep);
 	void DoFloater(float DeltaTime, bool InSubstep);
 
-	void UpdateAnalysisValues(float DeltaTime);
+	void UpdateMotionAnalysis(float DeltaTime);
+	void UpdateLinearDampingDescriptors();
 
 	float ClampForce(float Force, float DeltaTime);
 	float GetAppliedforce(float DeltaTime);

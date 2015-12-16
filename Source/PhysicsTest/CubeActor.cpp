@@ -90,12 +90,30 @@ void ACubeActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 
 	UE_LOG(LogClass, Log, TEXT("ACubeActor::PostEditChangeProperty %s"), *PropertyName.ToString());
 
-	if (PropertyName == TEXT("StartVelocity"))
-	{
-		bTest = StartVelocity;
-	}
+	UpdateLinearDampingDescriptors();
 }
 #endif
+
+void ACubeActor::UpdateLinearDampingDescriptors()
+{
+	float Mass = 1;
+
+	W0 = FMath::Sqrt(Kp / Mass) / (2 * PI);
+	Period = 1000 / W0;
+	Z = Kp == 0 ? 0 : Kd / (2 * FMath::Sqrt(Kp * Mass));
+
+	if (Z >= 0 && Z < 1)
+	{
+		Wd = W0 * FMath::Sqrt(1 - Z*Z);
+
+		float tmp = 1 - 2*Z*Z;
+		WPeak = tmp > 0 ? W0 * FMath::Sqrt(tmp) : 0;
+		MaxGain = tmp <= 0 ? 0 : (1 - FMath::Sqrt(tmp)) <= 0 ? 0 : 1 / FMath::Sqrt(1 - FMath::Sqrt(tmp));
+	}
+	else {
+		Wd = WPeak = MaxGain = 0;
+	}
+}
 
 void ACubeActor::PostInitProperties()
 {
@@ -154,7 +172,7 @@ void ACubeActor::Tick( float DeltaTime )
 
 	FrameCount++;
 
-	if (GetGameInstance()->GetFirstLocalPlayerController()->WasInputKeyJustPressed(EKeys::SpaceBar)) {
+	if (GetGameInstance()->GetFirstLocalPlayerController()->WasInputKeyJustPressed(EKeys::One)) {
 		bApplyForce = !bApplyForce;
 
 		UE_LOG(LogClass, Log, TEXT("Apply force: %s"), bApplyForce ? TEXT("True") : TEXT("False"));
@@ -166,7 +184,7 @@ void ACubeActor::Tick( float DeltaTime )
 	if (!bSubstepEnabled)
 		MainTick(DeltaTime);
 
-	UpdateAnalysisValues(DeltaTime);
+	UpdateMotionAnalysis(DeltaTime);
 }
 
 void ACubeActor::MainTick(float DeltaTime) 
@@ -291,7 +309,7 @@ float ACubeActor::GetAppliedforce(float DeltaTime) {
 	return CurrentAppliedForce;
 }
 
-void ACubeActor::UpdateAnalysisValues(float DeltaTime)
+void ACubeActor::UpdateMotionAnalysis(float DeltaTime)
 {
 	static int32 lastDir = 0, lastH = 0;
 	static double lastPeriodStart = 0, currPeriod = 0, currAmplitude = 0;
@@ -307,8 +325,8 @@ void ACubeActor::UpdateAnalysisValues(float DeltaTime)
 	if (lastPeriodStart == 0) lastPeriodStart = Time;
 	else {
 		if (lastDir != currDir) {
-			currPeriod = Time - lastPeriodStart;
-			currAmplitude = FMath::Abs(currH);
+			currPeriod = (Time - lastPeriodStart) * 2;
+			currAmplitude = FMath::Abs(currH) * 2;
 
 			lastPeriodStart = Time;
 		}
