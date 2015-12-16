@@ -60,6 +60,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Parameters")
 		bool bEnableLogging;
 
+	UPROPERTY(VisibleAnywhere, Category = "Linear Damping", meta = (ToolTip = "All contexts must pass condition"))
+		float bTest;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Tick")
 	FMySecondaryTickFunction SecondaryActorTick;
 
@@ -83,10 +86,13 @@ private:
 	void DoPhysics(float DeltaTime, bool InSubstep);
 	void DoFloater(float DeltaTime, bool InSubstep);
 
+	void UpdateAnalysisValues(float DeltaTime);
+
 	float ClampForce(float Force, float DeltaTime);
 	float GetAppliedforce(float DeltaTime);
 
-	UStaticMeshComponent *cube;
+	UStaticMeshComponent *Cube;
+	UTextRenderComponent *DebugPanel;
 
 	int32 FrameCount;
 

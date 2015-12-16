@@ -10,6 +10,8 @@
 
 #include "CubeActor.h"
 
+#define LOCTEXT_NAMESPACE "foo"
+
 void FMySecondaryTickFunction::ExecuteTick(
 	float DeltaTime,
 	ELevelTick TickType,
@@ -63,8 +65,20 @@ ACubeActor::ACubeActor(const class FObjectInitializer& PCIP)
 	
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("StaticMesh'/Engine/BasicShapes/Cube'"));
 
-	cube = Cast<UStaticMeshComponent>(PCIP.CreateDefaultSubobject <UMyStaticMeshComponent>(this, TEXT("Cube")));
-	cube->SetStaticMesh(CubeMesh.Object);
+	USceneComponent *root = PCIP.CreateDefaultSubobject<USceneComponent>(this, TEXT("Root"));
+	SetRootComponent(root);
+
+	Cube = PCIP.CreateDefaultSubobject <UMyStaticMeshComponent>(this, TEXT("Cube"));
+	Cube->SetStaticMesh(CubeMesh.Object);
+	Cube->AttachTo(root);
+
+	DebugPanel = PCIP.CreateDefaultSubobject <UTextRenderComponent>(this, TEXT("Debug panel"));
+	DebugPanel->SetRelativeLocation(FVector(0, -100, 0));
+	DebugPanel->AttachTo(root);
+	DebugPanel->SetXScale(2);
+	DebugPanel->SetYScale(2);
+	DebugPanel->SetText(FText::FromString(TEXT("")));
+	DebugPanel->SetTextRenderColor(FColor(0, 0, 0));
 }
 
 #if WITH_EDITORONLY_DATA
@@ -75,6 +89,11 @@ void ACubeActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 	const FName PropertyName = PropertyChangedEvent.Property ? PropertyChangedEvent.Property->GetFName() : NAME_None;
 
 	UE_LOG(LogClass, Log, TEXT("ACubeActor::PostEditChangeProperty %s"), *PropertyName.ToString());
+
+	if (PropertyName == TEXT("StartVelocity"))
+	{
+		bTest = StartVelocity;
+	}
 }
 #endif
 
@@ -95,16 +114,16 @@ void ACubeActor::PostInitializeComponents()
 
 	UE_LOG(LogClass, Log, TEXT("ACubeActor::PostInitializeComponents"));
 
-	if (cube) {
-		cube->SetSimulatePhysics(true);
-		cube->SetEnableGravity(false);
-		cube->SetMassOverrideInKg();
-		cube->SetAngularDamping(0);
-		cube->SetLinearDamping(0);
+	if (Cube) {
+		Cube->SetSimulatePhysics(true);
+		Cube->SetEnableGravity(false);
+		Cube->SetMassOverrideInKg();
+		Cube->SetAngularDamping(0);
+		Cube->SetLinearDamping(0);
 
-		cube->SetConstraintMode(EDOFMode::SixDOF);
+		Cube->SetConstraintMode(EDOFMode::SixDOF);
 
-		FBodyInstance *bi = cube->GetBodyInstance();
+		FBodyInstance *bi = Cube->GetBodyInstance();
 		if (bi) {
 			bi->bLockXTranslation = true;
 			bi->bLockYTranslation = true;
@@ -124,8 +143,8 @@ void ACubeActor::BeginPlay()
 	
 	StartH = GetActorLocation().Z;
 
-	if(cube)
-		cube->SetPhysicsLinearVelocity(FVector(0.0f, 0.0f, StartVelocity));
+	if(Cube)
+		Cube->SetPhysicsLinearVelocity(FVector(0.0f, 0.0f, StartVelocity));
 }
 
 // Called every frame
@@ -142,10 +161,12 @@ void ACubeActor::Tick( float DeltaTime )
 	}
 
 	if(bEnableLogging)
-		UE_LOG(LogClass, Log, TEXT("%d ACubeActor::Tick DeltaTime: %f, Z: %f"), FrameCount, DeltaTime, cube->GetComponentLocation().Z);
+		UE_LOG(LogClass, Log, TEXT("%d ACubeActor::Tick DeltaTime: %f, Z: %f"), FrameCount, DeltaTime, Cube->GetComponentLocation().Z);
 
 	if (!bSubstepEnabled)
 		MainTick(DeltaTime);
+
+	UpdateAnalysisValues(DeltaTime);
 }
 
 void ACubeActor::MainTick(float DeltaTime) 
@@ -158,7 +179,7 @@ void ACubeActor::MainTick(float DeltaTime)
 
 void ACubeActor::SubstepTick(float DeltaTime)
 {
-	physx::PxRigidBody* PRigidBody = cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
+	physx::PxRigidBody* PRigidBody = Cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
 	PxTransform PTransform = PRigidBody->getGlobalPose();
 
 	if (bEnableLogging)
@@ -185,7 +206,7 @@ void ACubeActor::TickPostPhysics(
 			{
 				//My cool post physics tick stuff
 				if (bEnableLogging)
-					UE_LOG(LogClass, Log, TEXT("%d ACubeActor::TickPostPhysics DeltaTime: %f, Z: %f"), FrameCount, DeltaSeconds, cube->GetComponentLocation().Z);
+					UE_LOG(LogClass, Log, TEXT("%d ACubeActor::TickPostPhysics DeltaTime: %f, Z: %f"), FrameCount, DeltaSeconds, Cube->GetComponentLocation().Z);
 			}
 		}
 	}
@@ -193,7 +214,7 @@ void ACubeActor::TickPostPhysics(
 
 void ACubeActor::DoPhysics(float DeltaTime, bool InSubstep)
 {
-	if (!cube) return;
+	if (!Cube) return;
 
 	DoFloater(DeltaTime, InSubstep);
 }
@@ -203,13 +224,13 @@ void ACubeActor::DoFloater(float DeltaTime, bool InSubstep)
 	float CurrError = 0;
 
 	if (InSubstep) {
-		physx::PxRigidBody* PRigidBody = cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
+		physx::PxRigidBody* PRigidBody = Cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
 		PxTransform PTransform = PRigidBody->getGlobalPose();
 
 		CurrError = PTransform.p.z - StartH;
 	}
 	else {
-		CurrError = cube->GetComponentLocation().Z - StartH;
+		CurrError = Cube->GetComponentLocation().Z - StartH;
 	}
 
 	ErrorIntegration += CurrError * DeltaTime;
@@ -220,11 +241,11 @@ void ACubeActor::DoFloater(float DeltaTime, bool InSubstep)
 	force = ClampForce(force, DeltaTime) + GetAppliedforce(DeltaTime);
 
 	if (InSubstep) {
-		physx::PxRigidBody* PRigidBody = cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
+		physx::PxRigidBody* PRigidBody = Cube->GetBodyInstance()->GetPxRigidBody_AssumesLocked();
 		PRigidBody->addForce(PxVec3(0.0f, 0.0f, force), physx::PxForceMode::eFORCE, true);
 	}
 	else {
-		cube->AddForce(FVector(0.0f, 0.0f, force));
+		Cube->AddForce(FVector(0.0f, 0.0f, force));
 	}
 
 	LastDeltaTime = DeltaTime;
@@ -269,3 +290,35 @@ float ACubeActor::GetAppliedforce(float DeltaTime) {
 
 	return CurrentAppliedForce;
 }
+
+void ACubeActor::UpdateAnalysisValues(float DeltaTime)
+{
+	static int32 lastDir = 0, lastH = 0;
+	static double lastPeriodStart = 0, currPeriod = 0, currAmplitude = 0;
+
+	float currH = Cube->GetComponentLocation().Z - StartH;
+	int currDir = currH > lastH ? 1 : -1;
+
+	int32 Seconds;
+	float PartialSeconds;
+	UGameplayStatics::GetAccurateRealTime(GetWorld(), Seconds, PartialSeconds);
+	double Time = (double)Seconds + PartialSeconds;
+
+	if (lastPeriodStart == 0) lastPeriodStart = Time;
+	else {
+		if (lastDir != currDir) {
+			currPeriod = Time - lastPeriodStart;
+			currAmplitude = FMath::Abs(currH);
+
+			lastPeriodStart = Time;
+		}
+	}
+
+	int32 fps = FMath::RoundToInt(1 / DeltaTime);
+	DebugPanel->SetText(FText::Format(LOCTEXT("Debug Panel", "{0} FPS\n{1} sec\n{2} Amplitude"), FText::AsNumber(fps), FText::AsNumber(currPeriod), FText::AsNumber(currAmplitude)));
+
+	lastDir = currDir;
+	lastH = currH;
+}
+
+#undef LOCTEXT_NAMESPACE
