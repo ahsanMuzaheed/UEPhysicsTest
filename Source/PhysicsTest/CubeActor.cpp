@@ -42,7 +42,7 @@ ACubeActor::ACubeActor(const class FObjectInitializer& PCIP)
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 
-	SecondaryActorTick.TickGroup = TG_PrePhysics;
+	SecondaryActorTick.TickGroup = TG_PostPhysics;
 	SecondaryActorTick.bCanEverTick = true;
 	SecondaryActorTick.bStartWithTickEnabled = true;
 
